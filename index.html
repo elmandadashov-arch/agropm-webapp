@@ -6,75 +6,131 @@
   <title>Agro PM Finance</title>
   <link rel="manifest" href="manifest.json">
 </head>
-<body style="font-family: Arial; padding:20px">
 
-<h2>AGRO PM JURNAL</h2>
+<body style="font-family: Arial, sans-serif; padding:20px; max-width:520px; margin:0 auto;">
 
-<input id="api" placeholder="API URL-ni buraya yapışdır" style="width:100%" />
-<button onclick="saveApi()">API Saxla</button>
+<h2>AGRO PM — JURNAL</h2>
+
+<div style="margin-bottom:10px;">
+  <div style="font-size:14px; margin-bottom:6px;">API URL</div>
+  <input id="api" placeholder="Apps Script .../exec linkini yapışdır" style="width:100%; padding:10px; box-sizing:border-box;" />
+  <button onclick="saveApi()" style="margin-top:8px; padding:10px 14px;">API Saxla</button>
+</div>
 
 <hr>
 
 <h3>Yeni Əməliyyat</h3>
 
-<input id="nov" placeholder="Növ (MƏDAXİL/MƏXARİC)" style="width:100%" /><br><br>
-<input id="mebleg" placeholder="Məbləğ" style="width:100%" /><br><br>
-<input id="aciqlama" placeholder="Açıqlama" style="width:100%" /><br><br>
+<div style="margin:10px 0;">
+  <div style="font-size:14px; margin-bottom:6px;">Növ</div>
+  <select id="nov" style="width:100%; padding:10px;">
+    <option value="MƏXARİC">MƏXARİC</option>
+    <option value="MƏDAXİL">MƏDAXİL</option>
+    <option value="TRANSFER">TRANSFER</option>
+  </select>
+</div>
 
-<button onclick="add()">Əlavə et</button>
+<div style="margin:10px 0;">
+  <div style="font-size:14px; margin-bottom:6px;">Məbləğ</div>
+  <input id="mebleg" type="number" inputmode="decimal" placeholder="məs: 15" style="width:100%; padding:10px; box-sizing:border-box;" />
+</div>
+
+<div style="margin:10px 0;">
+  <div style="font-size:14px; margin-bottom:6px;">Qeyd</div>
+  <input id="qeyd" placeholder="məs: test" style="width:100%; padding:10px; box-sizing:border-box;" />
+</div>
+
+<button onclick="add()" style="padding:12px 14px; width:100%;">Əlavə et</button>
 
 <hr>
 
 <h3>Son əməliyyatlar</h3>
-<button onclick="load()">Yenilə</button>
+<button onclick="load()" style="padding:10px 14px;">Yenilə</button>
 
-<pre id="out"></pre>
+<pre id="out" style="white-space:pre-wrap; background:#f5f5f5; padding:12px; border-radius:8px; margin-top:10px;"></pre>
 
 <script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js');
-}
+  // PWA
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
 
-document.getElementById("api").value =
-  localStorage.getItem("API_URL") || "";
+  const apiInput = document.getElementById("api");
+  apiInput.value = localStorage.getItem("API_URL") || "";
 
-function saveApi(){
-  localStorage.setItem("API_URL",
-  document.getElementById("api").value);
-  alert("API saxlanıldı");
-}
-
-function api(){
-  return localStorage.getItem("API_URL");
-}
-
-async function load(){
-  const res = await fetch(api()+"?action=list&limit=10");
-  const data = await res.json();
-  document.getElementById("out").textContent =
-    JSON.stringify(data, null, 2);
-}
-
-async function add(){
-  const payload = {
-    action:"add",
-    data:{
-      Tarix: new Date().toISOString(),
-      Növ: document.getElementById("nov").value,
-      Məbləğ: document.getElementById("mebleg").value,
-      Açıqlama: document.getElementById("aciqlama").value
+  function saveApi(){
+    const url = apiInput.value.trim();
+    if(!url){
+      alert("API URL boşdur");
+      return;
     }
-  };
+    localStorage.setItem("API_URL", url);
+    alert("API saxlanıldı");
+  }
 
-  await fetch(api(),{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify(payload)
-  });
+  function api(){
+    const url = (localStorage.getItem("API_URL") || "").trim();
+    if(!url) throw new Error("API URL boşdur. Əvvəl saxla.");
+    return url;
+  }
 
-  alert("Əlavə olundu");
-  load();
-}
+  async function load(){
+    try{
+      const res = await fetch(api() + "?action=list&limit=10", { method:"GET" });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch(e){ data = { ok:false, raw:text }; }
+      document.getElementById("out").textContent = JSON.stringify(data, null, 2);
+    } catch(err){
+      alert("Load xətası: " + err.message);
+    }
+  }
+
+  async function add(){
+    try{
+      const nov = document.getElementById("nov").value;
+      const mebleg = Number(document.getElementById("mebleg").value || 0);
+      const qeyd = document.getElementById("qeyd").value || "";
+
+      if(!nov){ alert("Növ seç"); return; }
+      if(!mebleg || mebleg <= 0){ alert("Məbləğ yaz (0-dan böyük)"); return; }
+
+      const payload = {
+        action: "add",
+        data: {
+          Tarix: new Date().toISOString(),
+          "Növ": nov,
+          "Məbləğ": mebleg,
+          "Qeyd": qeyd
+        }
+      };
+
+      const res = await fetch(api(),{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify(payload)
+      });
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch(e){ data = { ok:false, raw:text }; }
+
+      if(!res.ok || !data.ok){
+        alert("Xəta oldu: " + JSON.stringify(data));
+        return;
+      }
+
+      alert("Əlavə olundu. ID: " + data.id);
+
+      // formu təmizlə
+      document.getElementById("mebleg").value = "";
+      document.getElementById("qeyd").value = "";
+
+      load();
+    } catch(err){
+      alert("Add xətası: " + err.message);
+    }
+  }
 </script>
 
 </body>
