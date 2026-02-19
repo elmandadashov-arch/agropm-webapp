@@ -1,0 +1,8 @@
+{
+  "name": "Agro PM Finance",
+  "short_name": "AgroPM",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff"
+}
